@@ -1,11 +1,13 @@
 // ===== 설정 (여기만 고치면 됨) =====
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbxT5-lAhEZetpBkVQdGbriYU2ClTeGtx9-WRPFuG13NzObmqOP5IzRPpEX0-KajcGU2TA/exec";                                // 구글 앱스 스크립트 웹앱 주소 (비워 두면 전송 안 함)
-const LIMIT_MINUTES = 60;                                // 제한 시간(분)
+const MINUTES = {
+  basic: 60,
+  adv: { 100: 25, 200: 50 }
+};
 const PASS = 80;                                         // 통과 점수(100점 만점)
 const IMG = { pass: "img/pass.webp", fail: "img/fail.webp" };
 Object.values(IMG).forEach(s => { new Image().src = s; });   // 결과 사진 미리 불러오기
 const CHOICE_MIN = 5, CHOICE_MAX = 7;                  // 보기 개수 범위
-const LEVEL_NAME = "기본형";
 
 // 불러오기 실패 때 쓰는 테스트용 샘플
 const SAMPLE = { basic: [
@@ -14,7 +16,7 @@ const SAMPLE = { basic: [
 ] };
 
 // ===== 상태 =====
-let DATA = null;
+let DATA = null, level = "basic", count = null;
 let quiz = [], idx = 0, bi = 0, answers = [], startedAt = 0, timerId = null, deadline = 0, finished = false;
 const $ = id => document.getElementById(id);
 
@@ -60,9 +62,36 @@ async function load() {
 // ===== 시작 화면 =====
 let failMsg = "";
 function refreshStart() {
-  $("info").textContent = failMsg + `총 51문항(빈칸 201개) · 제한 ${LIMIT_MINUTES}분`;
-  $("go").disabled = !$("name").value.trim();
+  const isAdv = level === "adv";
+  $("countWrap").hidden = !isAdv;
+  let note = "";
+  if (!isAdv) {
+    note = `기본형: 총 51문항(빈칸 201개) · 제한 ${MINUTES.basic}분`;
+    $("go").disabled = !$("name").value.trim();
+  } else {
+    note = count ? `심화형: 빈칸 약 ${count}개 · 제한 ${MINUTES.adv[count]}분` : "문제 수를 선택해 주세요 (100개 / 200개)";
+    $("go").disabled = !(count && $("name").value.trim());
+  }
+  $("info").textContent = failMsg + note;
 }
+function bindGroup(groupId, attr, setter) {
+  $(groupId).addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b) return;
+    [...$(groupId).children].forEach(x => x.classList.toggle("on", x === b));
+    setter(b.dataset[attr]); refreshStart();
+  });
+}
+bindGroup("levelGroup", "level", v => {
+  level = v;
+  if (level === "adv" && !count) {
+    count = 100;
+    const btns = $("countGroup").querySelectorAll("button");
+    if (btns.length) {
+      btns.forEach(x => x.classList.toggle("on", x.dataset.count === "100"));
+    }
+  }
+});
+bindGroup("countGroup", "count", v => count = +v);
 $("name").addEventListener("input", refreshStart);
 $("go").addEventListener("click", startQuiz);
 $("again").addEventListener("click", () => { show("start"); });
@@ -114,11 +143,23 @@ function makeChoices(q, all) {        // 빈칸마다 보기 세트 하나
   });
 }
 function startQuiz() {
-  const all = (DATA && (DATA.basic || DATA)) || SAMPLE.basic;
+  const pool = (DATA && DATA[level]) || (level === "basic" ? SAMPLE.basic : SAMPLE.adv || SAMPLE.basic);
   quiz = [];
-  for (const q of shuffle(all)) { quiz.push({ q, choices: makeChoices(q, all) }); }
+  let limit = MINUTES.basic;
+  if (level === "basic") {
+    for (const q of shuffle(pool)) { quiz.push({ q, choices: makeChoices(q, pool) }); }
+    limit = MINUTES.basic;
+  } else {
+    let sum = 0;
+    for (const q of shuffle(pool)) {
+      if (sum >= count) break;
+      quiz.push({ q, choices: makeChoices(q, pool) });
+      sum += q.answers.length;
+    }
+    limit = (MINUTES.adv && MINUTES.adv[count]) || 25;
+  }
   clearTimeout(autoId); idx = 0; bi = 0; answers = quiz.map(x => x.q.answers.map(() => null)); finished = false;
-  startedAt = Date.now(); deadline = startedAt + LIMIT_MINUTES * 60000;
+  startedAt = Date.now(); deadline = startedAt + limit * 60000;
   show("quiz"); renderQ();
   clearInterval(timerId); timerId = setInterval(tick, 500); tick();
 }
@@ -216,8 +257,9 @@ function finish(timedOut) {
   show("result"); window.scrollTo(0, 0);
   $("suspense").hidden = false; $("reveal").hidden = true;           // 2초 두근두근 후 공개
   setTimeout(() => { $("suspense").hidden = true; $("reveal").hidden = false; }, 2000);
+  const levelText = level === "basic" ? "기본형" : `심화형(${count}개)`;
   sendResult({
-    time: stamp(new Date()), name: $("name").value.trim(), level: LEVEL_NAME,
+    time: stamp(new Date()), name: $("name").value.trim(), level: levelText,
     total, score: right, solved, wrong: wrong.map(w => w.q.id).join(","), seconds: sec, timedOut: timedOut ? "Y" : "N"
   });
 }
