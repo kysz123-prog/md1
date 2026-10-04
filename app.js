@@ -2,7 +2,7 @@
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbxT5-lAhEZetpBkVQdGbriYU2ClTeGtx9-WRPFuG13NzObmqOP5IzRPpEX0-KajcGU2TA/exec";                                // 구글 앱스 스크립트 웹앱 주소 (비워 두면 전송 안 함)
 const MINUTES = {
   basic: 60,
-  adv: { 100: 25, 200: 50 }
+  adv: { 50: 17, 100: 25, 200: 50 }
 };
 const PASS = 80;                                         // 통과 점수(100점 만점)
 const IMG = { pass: "img/pass.webp", fail: "img/fail.webp" };
@@ -70,7 +70,7 @@ function refreshStart() {
     note = `기본형: 총 51문항(빈칸 201개) · 제한 ${MINUTES.basic}분`;
     $("go").disabled = !$("name").value.trim();
   } else {
-    note = count ? `심화형: 빈칸 약 ${count}개 · 제한 ${MINUTES.adv[count]}분` : "문제 수를 선택해 주세요 (100개 / 200개)";
+    note = count ? `심화형: 빈칸 약 ${count}개 · 제한 ${MINUTES.adv[count]}분` : "문제 수를 선택해 주세요 (50개 / 100개 / 200개)";
     $("go").disabled = !(count && $("name").value.trim());
   }
   $("info").textContent = failMsg + note;
@@ -85,10 +85,10 @@ function bindGroup(groupId, attr, setter) {
 bindGroup("levelGroup", "level", v => {
   level = v;
   if (level === "adv" && !count) {
-    count = 100;
+    count = 50;
     const btns = $("countGroup").querySelectorAll("button");
     if (btns.length) {
-      btns.forEach(x => x.classList.toggle("on", x.dataset.count === "100"));
+      btns.forEach(x => x.classList.toggle("on", x.dataset.count === "50"));
     }
   }
 });
