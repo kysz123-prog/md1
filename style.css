@@ -2,6 +2,7 @@
   --g: #0f8a5f; --g-d: #0a6b49; --g-s: #e7f5ee; --g-m: #c5e6d5;
   --ink: #17221d; --sub: #5f6f67; --line: #e4ebe7; --bg: #f6f8f7; --card: #fff; --red: #e03131;
 }
+html, body { overscroll-behavior-y: none; }   /* 당겨서 새로고침 막기 */
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 body { margin: 0; font-family: Pretendard, "Malgun Gothic", system-ui, sans-serif; color: var(--ink); background: var(--bg); letter-spacing: -.2px; }
 main { max-width: 720px; margin: 0 auto; padding: 0 16px 40px; }
@@ -108,3 +109,9 @@ b.good { color: var(--g-d); font-weight: 700; }
 .btn-text:hover { text-decoration: underline; }
 .btn-back { padding: 8px 16px; border: 1.5px solid var(--line); border-radius: 10px; background: #fff; color: var(--sub); font-weight: 700; cursor: pointer; font-size: 14px; }
 .btn-back:hover { background: #f0f4f2; color: var(--ink); }
+
+/* 풀던 문제 이어 풀기 */
+.resume { background: var(--g-s); border: 1.5px solid var(--g-m); border-radius: 14px; padding: 16px; margin-bottom: 22px; text-align: center; }
+.resume p { margin: 0; font-size: 15px; line-height: 1.5; color: var(--ink); }
+.resume button.primary { margin-top: 12px; }
+.resume .btn-text { margin-top: 8px; }

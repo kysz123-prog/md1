@@ -47,7 +47,7 @@ const fmt = sec => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}
 
 // ===== 데이터 불러오기 =====
 async function load() {
-  if (window.QUESTIONS) { DATA = window.QUESTIONS; return retryPending(); }   // 더블클릭으로 열어도 동작
+  if (window.QUESTIONS) { DATA = window.QUESTIONS; checkResume(); return retryPending(); }   // 더블클릭으로 열어도 동작
   try {
     const r = await fetch("questions.json", { cache: "no-cache" });
     if (!r.ok) throw new Error(r.status);
@@ -56,6 +56,7 @@ async function load() {
     DATA = SAMPLE; failMsg = "문제 파일을 못 불러와 샘플로 실행 중입니다. ";
     refreshStart();
   }
+  checkResume();
   retryPending();
 }
 
@@ -200,7 +201,13 @@ function startQuiz() {
   }
   clearTimeout(autoId); idx = 0; bi = 0; answers = quiz.map(x => x.q.answers.map(() => null)); finished = false;
   startedAt = Date.now(); deadline = startedAt + limit * 60000;
-  show("quiz"); renderQ();
+  enterQuiz();
+}
+function enterQuiz() {                 // 새로 시작·이어 풀기 공통: 풀이 화면을 열고 시계를 돌림
+  $("resume").hidden = true; saved = null;
+  show("quiz"); renderQ(); window.scrollTo(0, 0);
+  history.pushState({ quiz: 1 }, "");  // 뒤로가기를 눌러도 이 자리에 머물게
+  keepAwake();
   clearInterval(timerId); timerId = setInterval(tick, 500); tick();
 }
 function tick() {
@@ -232,6 +239,7 @@ function renderQ() {
   $("next").hidden = !last && picks.includes(null);
   $("next").disabled = picks.includes(null);
   $("next").textContent = idx + 1 >= quiz.length ? "제출" : "다음";
+  saveSession();
 }
 function choose(c) {                  // 같은 보기를 다시 누르면 취소
   if (finished) return;
@@ -267,6 +275,7 @@ $("prev").addEventListener("click", () => { if (idx > 0 && !finished) go(-1); })
 // ===== 결과 =====
 function finish(timedOut) {
   if (finished) return; finished = true; clearInterval(timerId);
+  clearSession(); releaseAwake();
   // 점수는 빈칸 하나가 1점
   let right = 0, solved = 0, total = 0;
   const wrong = [];
@@ -390,6 +399,73 @@ $("btnClearNotes").addEventListener("click", () => {
     renderNotes(); updateNotesBadge();
   }
 });
+
+// ===== 풀던 문제 보관 (탭이 닫히거나 새로고침돼도 이어 풀기) =====
+// 마감 시각을 그대로 보관하므로 나가 있던 시간도 제한시간에서 빠짐
+const SKEY = "session";
+function saveSession() {
+  if (finished || !quiz.length) return;
+  try {
+    localStorage.setItem(SKEY, JSON.stringify({
+      level, count, name: $("name").value.trim(), startedAt, deadline, idx, bi, answers,
+      quiz: quiz.map(x => ({ id: x.q.id, choices: x.choices }))
+    }));
+  } catch (e) {}
+}
+function clearSession() { try { localStorage.removeItem(SKEY); } catch (e) {} }
+function loadSession() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SKEY) || "null");
+    const pool = s && DATA && DATA[s.level];
+    if (!pool) return null;
+    const byId = new Map(pool.map(q => [q.id, q]));
+    const qz = s.quiz.map(x => ({ q: byId.get(x.id), choices: x.choices }));
+    if (!qz.length || qz.some(x => !x.q || x.choices.length !== x.q.answers.length)) return null;   // 문항이 바뀌었으면 버림
+    return { ...s, quiz: qz };
+  } catch (e) { return null; }
+}
+let saved = null;
+function checkResume() {
+  saved = loadSession();
+  if (!saved) { clearSession(); $("resume").hidden = true; return; }
+  const left = Math.max(0, Math.ceil((saved.deadline - Date.now()) / 1000));
+  const done = saved.answers.flat().filter(p => p !== null).length, all = saved.answers.flat().length;
+  const lv = saved.level === "basic" ? "기본형" : `심화형(${saved.count}개)`;
+  $("resumeInfo").innerHTML = `<b>${esc(saved.name || "이름 없음")}</b> · ${lv} 풀던 문제가 있어요.<br>` +
+    (left > 0 ? `빈칸 ${done} / ${all} 완료 · 남은 시간 ${fmt(left)}` : `제한시간이 끝났어요. 푼 데까지 채점합니다.`);
+  $("btnResume").textContent = left > 0 ? "이어서 풀기" : "결과 보기";
+  $("resume").hidden = false;
+}
+$("btnResume").addEventListener("click", () => {
+  const s = saved; if (!s) return;
+  level = s.level; count = s.count; $("name").value = s.name;
+  [...$("levelGroup").children].forEach(x => x.classList.toggle("on", x.dataset.level === level));
+  [...$("countGroup").children].forEach(x => x.classList.toggle("on", +x.dataset.count === count));
+  refreshStart();
+  quiz = s.quiz; answers = s.answers; idx = Math.min(s.idx, quiz.length - 1); bi = s.bi;
+  startedAt = s.startedAt; deadline = s.deadline; finished = false; clearTimeout(autoId);
+  $("resume").hidden = true; saved = null;
+  enterQuiz();                          // 시간이 이미 끝났으면 tick()이 바로 제출
+});
+$("btnDiscard").addEventListener("click", () => {
+  if (!confirm("풀던 문제를 버리고 처음부터 시작할까요?")) return;
+  clearSession(); saved = null; $("resume").hidden = true;
+});
+const solving = () => !$("quiz").hidden && !finished;
+window.addEventListener("popstate", () => { if (solving()) history.pushState({ quiz: 1 }, ""); });   // 뒤로가기 무시
+window.addEventListener("beforeunload", e => { if (solving()) { saveSession(); e.preventDefault(); e.returnValue = ""; } });
+window.addEventListener("pagehide", saveSession);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") saveSession();
+  else if (solving()) keepAwake();      // 화면을 다시 켜면 꺼짐 방지도 다시 켬
+});
+
+// 푸는 동안 화면이 저절로 꺼지지 않게(지원하는 브라우저만)
+let wakeLock = null;
+async function keepAwake() {
+  try { if ("wakeLock" in navigator && !wakeLock) { wakeLock = await navigator.wakeLock.request("screen"); wakeLock.addEventListener("release", () => { wakeLock = null; }); } } catch (e) {}
+}
+function releaseAwake() { try { if (wakeLock) wakeLock.release(); } catch (e) {} wakeLock = null; }
 
 updateNotesBadge();
 load();
