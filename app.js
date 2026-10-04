@@ -7,7 +7,7 @@ const MINUTES = {
 const PASS = 80;                                         // 통과 점수(100점 만점)
 const IMG = { pass: "img/pass.webp", fail: "img/fail.webp" };
 Object.values(IMG).forEach(s => { new Image().src = s; });   // 결과 사진 미리 불러오기
-const CHOICE_MIN = 5, CHOICE_MAX = 7;                  // 보기 개수 범위
+const CHOICE_MIN = 6, CHOICE_MAX = 8;                  // 보기 개수 6~8개로 확대 (난이도 상향)
 
 // 불러오기 실패 때 쓰는 테스트용 샘플
 const SAMPLE = { basic: [
@@ -31,11 +31,48 @@ function layout(t) {
   const out = []; let rows = [];
   const flush = () => {
     if (!rows.length) return;
-    out.push("<table>" + rows.map((r, i) => "<tr>" + r.split("\t").map(c => {
-      const formatted = c.replace(/(.)\s*•\s*/g, "$1<br>• ");
-      const alignStyle = c.includes("•") ? ' style="text-align:left; padding-left:10px;"' : '';
-      return i ? `<td${alignStyle}>${formatted}</td>` : `<th${alignStyle}>${formatted}</th>`;
-    }).join("") + "</tr>").join("") + "</table>");
+    const grid = rows.map(r => r.split("\t").map(c => ({ text: c, rowspan: 1, colspan: 1, skip: false })));
+    const R = grid.length;
+    for (let r = 0; r < R; r++) {
+      const C = grid[r].length;
+      for (let c = 0; c < C; c++) {
+        const val = grid[r][c].text.trim();
+        if (val === "^") {
+          grid[r][c].skip = true;
+          for (let pr = r - 1; pr >= 0; pr--) {
+            if (!grid[pr][c].skip) {
+              grid[pr][c].rowspan += 1;
+              break;
+            }
+          }
+        } else if (val === "<") {
+          grid[r][c].skip = true;
+          for (let pc = c - 1; pc >= 0; pc--) {
+            if (!grid[r][pc].skip) {
+              grid[r][pc].colspan += 1;
+              break;
+            }
+          }
+        }
+      }
+    }
+    let html = "<table>";
+    for (let r = 0; r < R; r++) {
+      html += "<tr>";
+      const tag = r === 0 ? "th" : "td";
+      for (let c = 0; c < grid[r].length; c++) {
+        const cell = grid[r][c];
+        if (cell.skip) continue;
+        const attr = (cell.rowspan > 1 ? ` rowspan="${cell.rowspan}"` : "") +
+                     (cell.colspan > 1 ? ` colspan="${cell.colspan}"` : "");
+        const formatted = cell.text.replace(/(.)\s*•\s*/g, "$1<br>• ");
+        const alignStyle = cell.text.includes("•") ? ' style="text-align:left; padding-left:10px;"' : '';
+        html += `<${tag}${attr}${alignStyle}>${formatted}</${tag}>`;
+      }
+      html += "</tr>";
+    }
+    html += "</table>";
+    out.push(html);
     rows = [];
   };
   for (const l of esc(t).split("\n")) {
@@ -171,7 +208,29 @@ const GROUPS = [
   { words: ["열녀 설화", "관탈 민녀 설화", "신원 설화", "염정 설화", "암행어사 설화"] },
   { words: ["표면적 주제", "이면적 주제"] },
   { words: ["인간 해방", "신분 상승", "봉건 윤리", "유교적 이념"] },
-  { words: ["탐관오리", "불의한 지배층", "부패한 지방 수령"] }
+  { words: ["탐관오리", "불의한 지배층", "부패한 지방 수령"] },
+
+  // 8. 문법 요소: 높임법
+  { words: ["주체 높임법", "객체 높임법", "상대 높임법"] },
+  { words: ["주체 높임", "객체 높임", "상대 높임"] },
+  { words: ["직접 높임", "간접 높임"] },
+  { words: ["격식체", "비격식체"] },
+  { words: ["하십시오체", "하오체", "하게체", "해라체"] },
+  { words: ["해요체", "해체"] },
+
+  // 9. 상대 높임 종결 어미
+  { words: ["합니다", "합니까?", "하십시오", "하시지요"] },
+  { words: ["하오", "하오?", "하구려", "합시다", "하는구려"] },
+  { words: ["하네", "함세", "하는가?", "하나?", "하게", "하세", "하는구먼"] },
+  { words: ["한다", "하니?", "하느냐?", "해라", "하자", "하는구나"] },
+  { words: ["해요", "하지요", "해요?", "하지요?", "하군요"] },
+  { words: ["해", "하지", "해?", "하지?", "하군"] },
+
+  // 10. 문법 요소: 시제/피동/사동/부정
+  { words: ["과거 시제", "현재 시제", "미래 시제"] },
+  { words: ["능동", "피동"] },
+  { words: ["주동", "사동"] },
+  { words: ["안 부정문", "못 부정문"] }
 ];
 function groupMates(a, q) {
   const g = GROUPS.find(g => g.words.some(w => norm(w) === norm(a)) && (!g.when || g.when.test(q.text)));
@@ -276,6 +335,105 @@ $("next").addEventListener("click", () => {
 });
 $("prev").addEventListener("click", () => { if (idx > 0 && !finished) go(-1); });
 
+// 두 빈칸 i, j가 문항 q 내에서 대등한 관계인지 판별 (순서 바뀌어도 정답 처리)
+function areEquivBlanks(q, i, j) {
+  if (i === j) return false;
+  const a1 = q.answers[i], a2 = q.answers[j];
+  if (!a1 || !a2) return false;
+
+  // 1. 같은 GROUPS 범주에 속해야 함
+  const inSameGroup = GROUPS.some(g =>
+    g.words.some(w => norm(w) === norm(a1)) &&
+    g.words.some(w => norm(w) === norm(a2)) &&
+    (!g.when || g.when.test(q.text))
+  );
+  if (!inSameGroup) return false;
+
+  // 2. 텍스트 분할 및 위치 검사
+  const parts = q.text.split("{{blank}}");
+  if (parts.length !== q.answers.length + 1) return false;
+
+  const minI = Math.min(i, j), maxI = Math.max(i, j);
+  let mid = "";
+  for (let k = minI + 1; k <= maxI; k++) mid += parts[k];
+  mid = mid.trim();
+
+  // 3. 줄바꿈, 탭, 콜론(:), 괄호 설명 ( ), 개별 조건이 있으면 개별 정의이므로 대등하지 않음
+  if (/[\n\t:]/.test(mid)) return false;
+  if (/\(.*?\)/.test(mid)) return false;
+  if (/[은는이가]\s*결합한 것은/.test(mid)) return false;
+
+  // 따옴표/기호 제거한 clean 문자열
+  const midClean = mid.replace(/['"‘’“”,·/]/g, "").trim();
+
+  // 4. 대등 나열 패턴
+  // - 접속 조사 나열 (예: "와", "과", "및", "또는", 따옴표 붙은 "와 '")
+  if (/^(와|과|및|또는)$/.test(midClean)) return true;
+  // - 쉼표/슬래시/가운뎃점 나열 (예: ", ", ", 수식언, ", " / ")
+  if (/^([,·/]\s*([가-힣]+[,·/]\s*)*)$/.test(mid)) return true;
+  if (/^(와|과|및|또는|,|\/|·)\s*$/.test(mid)) return true;
+  if (/^[가-힣]+(와|과|및|,|\/)\s*$/.test(mid)) return true;
+  // - 문장 끝부분에 대등 나열 구문이 있고 mid가 단순 조사/구분자인 경우
+  const after = parts[maxI + 1] || "";
+  if (/등에도 붙는다|등으로|로 나뉜다|로 분류|포함되어 있으므로|쓰일 때도 있다|모두 쓰이므로/.test(after)) {
+    if (!/[은는이가를]\s+[가-힣]+[은는]/.test(mid) && mid.length <= 15) return true;
+  }
+
+  return false;
+}
+
+// 문항 q에 대해 학생의 답변 picks 채점 (대등 빈칸은 순서 바뀌어도 유연하게 정답 처리)
+function gradeQuestion(q, picks) {
+  const n = q.answers.length;
+  const ok = new Array(n).fill(false);
+
+  // 대등 클러스터 생성 (Union-Find)
+  const parent = Array.from({ length: n }, (_, i) => i);
+  const find = x => (parent[x] === x ? x : (parent[x] = find(parent[x])));
+  const union = (x, y) => { parent[find(x)] = find(y); };
+
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      if (areEquivBlanks(q, i, j)) union(i, j);
+    }
+  }
+
+  const clusters = new Map();
+  for (let i = 0; i < n; i++) {
+    const root = find(i);
+    if (!clusters.has(root)) clusters.set(root, []);
+    clusters.get(root).push(i);
+  }
+
+  // 클러스터별 채점
+  clusters.forEach(indices => {
+    const unpickedAnswers = [];
+    const unsolvedIndices = [];
+    indices.forEach(idx => {
+      const p = picks[idx], a = q.answers[idx];
+      if (p !== null && norm(p) === norm(a)) {
+        ok[idx] = true;
+      } else {
+        unpickedAnswers.push(a);
+        unsolvedIndices.push(idx);
+      }
+    });
+
+    unsolvedIndices.forEach(idx => {
+      const p = picks[idx];
+      if (p !== null) {
+        const matchIdx = unpickedAnswers.findIndex(a => norm(a) === norm(p));
+        if (matchIdx >= 0) {
+          ok[idx] = true;
+          unpickedAnswers.splice(matchIdx, 1);
+        }
+      }
+    });
+  });
+
+  return ok;
+}
+
 // ===== 결과 =====
 function finish(timedOut) {
   if (finished) return; finished = true; clearInterval(timerId);
@@ -286,7 +444,7 @@ function finish(timedOut) {
   quiz.forEach(({ q }, i) => {
     const picks = answers[i];
     total += q.answers.length; solved += picks.filter(p => p !== null).length;
-    const ok = q.answers.map((a, b) => picks[b] !== null && norm(picks[b]) === norm(a));
+    const ok = gradeQuestion(q, picks);
     right += ok.filter(Boolean).length;
     if (picks.some((p, b) => p !== null && !ok[b])) wrong.push({ q, ok, picks });
   });
