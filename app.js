@@ -31,12 +31,16 @@ function layout(t) {
   const out = []; let rows = [];
   const flush = () => {
     if (!rows.length) return;
-    out.push("<table>" + rows.map((r, i) => "<tr>" + r.split("\t").map(c => i ? `<td>${c}</td>` : `<th>${c}</th>`).join("") + "</tr>").join("") + "</table>");
+    out.push("<table>" + rows.map((r, i) => "<tr>" + r.split("\t").map(c => {
+      const formatted = c.replace(/(.)\s*•\s*/g, "$1<br>• ");
+      const alignStyle = c.includes("•") ? ' style="text-align:left; padding-left:10px;"' : '';
+      return i ? `<td${alignStyle}>${formatted}</td>` : `<th${alignStyle}>${formatted}</th>`;
+    }).join("") + "</tr>").join("") + "</table>");
     rows = [];
   };
   for (const l of esc(t).split("\n")) {
     if (l.includes("\t")) rows.push(l);
-    else { flush(); out.push(`<p${isHead(l) ? ' class="h"' : ""}>${l}</p>`); }
+    else { flush(); out.push(`<p${isHead(l) ? ' class="h"' : ""}>${l.replace(/(.)\s*•\s*/g, "$1<br>• ")}</p>`); }
   }
   flush();
   return out.join("");
