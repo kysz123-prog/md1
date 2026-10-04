@@ -24,7 +24,7 @@ const $ = id => document.getElementById(id);
 const esc = s => s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const norm = s => s.replace(/\s+/g, "");
 function shuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
-const show = id => ["start", "quiz", "result"].forEach(v => $(v).hidden = v !== id);
+const show = id => ["start", "quiz", "result", "notes"].forEach(v => $(v).hidden = v !== id);
 // 문단 글 → HTML: \t 있는 줄은 표의 한 행(첫 행은 머리글), 소제목 줄은 굵게. {{blank}} 자리는 그대로 둠
 const isHead = l => l.length < 40 && !l.includes("{{blank}}") && /^(\d+\.|\(\d+\)|[①-⑳])\s/.test(l);
 function layout(t) {
@@ -109,24 +109,64 @@ function nearPool(all, qi, used) {
 }
 // 같은 범주 묶음: 정답이 여기 들어 있으면 같은 묶음의 다른 말을 먼저 오답으로 넣음(when이 있으면 문항 글에 그 말이 있을 때만)
 const GROUPS = [
-  { words: ["향가", "고려가요", "시조", "가사", "민요"] },
-  { words: ["차자", "음차", "훈차"] },
+  // 1. 갈래
+  { words: ["향가", "고려가요", "시조", "가사", "민요", "경기체가", "악장", "신체시"] },
+  { words: ["서정 가사", "양반 가사", "정격 가사", "변격 가사", "내방 가사", "기행 가사"] },
+  { words: ["고전 소설", "판소리계 소설", "애정 소설", "영웅 소설", "군담 소설", "가정 소설"] },
+  { words: ["현대 소설", "단편 소설", "농촌 소설", "성장 소설", "역사 소설"] },
+  { words: ["자유시", "정형시", "산문시"] },
+  { words: ["서정시", "서사시", "극시"] },
+  { words: ["평시조", "사설시조", "엇시조", "연시조"] },
+
+  // 2. 형식 및 구성
   { words: ["4구체", "8구체", "10구체"] },
   { words: ["초장", "중장", "종장"] },
   { words: ["기", "서", "결"] },
   { words: ["기", "승", "전", "결"] },
-  { words: ["자유시", "정형시", "산문시"] },
-  { words: ["서정시", "서사시", "극시"] },
-  { words: ["해학적", "풍자적"] },
+  { words: ["발단", "전개", "위기", "절정", "결말"] },
+  { words: ["3장", "6구", "45자 내외", "4음보", "3음보"] },
+  { words: ["순행적 구성", "역순행적 구성", "액자식 구성", "평면적 구성", "입체적 구성"] },
   { words: ["운문체", "산문체"] },
-  { words: ["평시조", "사설시조", "연시조"] },
-  { words: ["비유", "상징"] },
-  { words: ["소극적", "적극적"] },
-  { words: ["통사적 합성어", "비통사적 합성어"] },
+  { words: ["한자어", "일상어", "순우리말", "방언"] },
+
+  // 3. 성격, 어조, 미의식
+  { words: ["추모적", "애상적", "종교적", "회고적", "감상적", "예찬적", "비판적"] },
+  { words: ["해학적", "풍자적", "염정적", "향토적", "일상적", "경험적"] },
+  { words: ["풍자", "해학", "냉소", "조소"] },
+  { words: ["숭고미", "우아미", "비장미", "골계미"] },
+
+  // 4. 태도 및 심리
+  { words: ["소극적", "적극적", "순응적", "저항적", "체념적", "달관적"] },
+  { words: ["의지적", "진취적", "수동적", "소극적"] },
+  { words: ["지속적", "일시적", "순간적"] },
+  { words: ["연민", "포용", "공감", "냉대", "적대감"] },
+  { words: ["고뇌", "슬픔", "탄식", "절망", "안타까움", "무상감"] },
+  { words: ["정절", "수절", "변절", "절개"] },
+  { words: ["충신연주지사", "연군지정", "우국지정", "안빈낙도", "유유자적"] },
+  { words: ["대리 만족", "카타르시스", "정화", "신명"] },
+
+  // 5. 시상 전개 및 표현 기법
+  { words: ["비유", "상징", "역설", "반어", "도치", "대구", "설의", "영탄"] },
+  { words: ["점층적", "점강적", "연쇄적", "반복적"] },
+  { words: ["의인화", "활유", "환유", "제유"] },
+  { words: ["감각적 이미지", "시각적 이미지", "청각적 이미지", "촉각적 이미지", "공감각적 이미지"] },
+  { words: ["객관적 상관물", "감정이입", "매개체", "복선"] },
+  { words: ["서술자의 개입", "편집자적 논평", "말하기", "보여주기"] },
+  { words: ["장면의 극대화", "부분의 독자성", "확장적 문체"] },
+
+  // 6. 국어 문법 및 표기
+  { words: ["차자", "음차", "훈차", "훈독", "음독"] },
+  { words: ["어간", "어미", "접사", "어근"] },
   { words: ["명사", "대명사", "수사", "동사", "형용사", "관형사", "부사", "조사", "감탄사"] },
   { words: ["체언", "용언", "수식언", "관계언", "독립언"] },
-  { words: ["주어", "서술어", "목적어", "보어", "관형어", "부사어", "독립어"] },
   { words: ["주성분", "부속 성분", "독립 성분"] },
+  { words: ["주어", "서술어", "목적어", "보어", "관형어", "부사어", "독립어"] },
+
+  // 7. 근원 설화 및 주제
+  { words: ["열녀 설화", "관탈 민녀 설화", "신원 설화", "염정 설화", "암행어사 설화"] },
+  { words: ["표면적 주제", "이면적 주제"] },
+  { words: ["인간 해방", "신분 상승", "봉건 윤리", "유교적 이념"] },
+  { words: ["탐관오리", "불의한 지배층", "부패한 지방 수령"] }
 ];
 function groupMates(a, q) {
   const g = GROUPS.find(g => g.words.some(w => norm(w) === norm(a)) && (!g.when || g.when.test(q.text)));
@@ -250,7 +290,14 @@ function finish(timedOut) {
   $("wrongList").innerHTML = wrong.length
     ? wrong.map(({ q, ok, picks }) => {
         let n = 0;
-        const t = layout(q.text).replace(/\{\{blank\}\}/g, () => { const b = n++; return `<b class="${ok[b] ? "good" : "ans"}">${esc(q.answers[b])}</b>`; });
+        const t = layout(q.text).replace(/\{\{blank\}\}/g, () => {
+          const b = n++, isOk = ok[b], pick = picks[b], ans = q.answers[b];
+          if (isOk) {
+            return `<b class="good">${esc(ans)}</b>`;
+          } else {
+            return `<span class="wrong-box"><b class="my-pick">${esc(pick || "미응시")}</b><span class="arrow">➔</span><b class="ans">${esc(ans)}</b></span>`;
+          }
+        });
         return `<div class="card passage">${t}</div>`;
       }).join("")
     : '<p class="note">틀린 문제가 없습니다.</p>';
@@ -258,6 +305,7 @@ function finish(timedOut) {
   $("suspense").hidden = false; $("reveal").hidden = true;           // 2초 두근두근 후 공개
   setTimeout(() => { $("suspense").hidden = true; $("reveal").hidden = false; }, 2000);
   const levelText = level === "basic" ? "기본형" : `심화형(${count}개)`;
+  saveWrongNotes(wrong, levelText);
   sendResult({
     time: stamp(new Date()), name: $("name").value.trim(), level: levelText,
     total, score: right, solved, wrong: wrong.map(w => w.q.id).join(","), seconds: sec, timedOut: timedOut ? "Y" : "N"
@@ -279,4 +327,69 @@ async function retryPending() {
   savePending(keep);
 }
 
+// ===== 오답노트 (로컬 스토리지 보관) =====
+function getWrongNotes() {
+  try { return JSON.parse(localStorage.getItem("wrongNotes") || "[]"); } catch (e) { return []; }
+}
+function saveWrongNotes(wrongItems, levelText) {
+  if (!wrongItems || !wrongItems.length) return;
+  const current = getWrongNotes();
+  const now = stamp(new Date());
+  wrongItems.forEach(({ q, ok, picks }) => {
+    const idx = current.findIndex(x => x.id === q.id);
+    const item = {
+      id: q.id, text: q.text, answers: q.answers,
+      ok, picks, level: levelText, time: now
+    };
+    if (idx >= 0) current[idx] = item;
+    else current.unshift(item);
+  });
+  try { localStorage.setItem("wrongNotes", JSON.stringify(current)); } catch (e) {}
+  updateNotesBadge();
+}
+function updateNotesBadge() {
+  const cnt = getWrongNotes().length;
+  const el = $("notesBadge"); if (el) el.textContent = cnt;
+}
+function renderNotes() {
+  const notes = getWrongNotes();
+  const box = $("notesList");
+  if (!notes.length) {
+    box.innerHTML = '<div class="card passage"><p class="note" style="padding: 24px 0;">아직 저장된 오답이 없습니다.<br>문제를 풀고 틀린 문항이 생기면 여기에 자동으로 모입니다!</p></div>';
+    return;
+  }
+  box.innerHTML = notes.map((item, i) => {
+    let n = 0;
+    const t = layout(item.text).replace(/\{\{blank\}\}/g, () => {
+      const b = n++, isOk = item.ok[b], pick = item.picks[b], ans = item.answers[b];
+      if (isOk) {
+        return `<b class="good">${esc(ans)}</b>`;
+      } else {
+        return `<span class="wrong-box"><b class="my-pick">${esc(pick || "미응시")}</b><span class="arrow">➔</span><b class="ans">${esc(ans)}</b></span>`;
+      }
+    });
+    return `
+      <div class="card passage" style="margin-bottom: 20px;">
+        <div class="notes-meta">
+          <span>#${i + 1} [${esc(item.level)}]</span>
+          <span>${esc(item.time)}</span>
+        </div>
+        ${t}
+      </div>`;
+  }).join("");
+}
+
+// 오답노트 화면 이벤트
+$("btnNotes").addEventListener("click", () => { renderNotes(); show("notes"); window.scrollTo(0, 0); });
+const resNotesBtn = $("btnResultNotes");
+if (resNotesBtn) resNotesBtn.addEventListener("click", () => { renderNotes(); show("notes"); window.scrollTo(0, 0); });
+$("btnNotesBack").addEventListener("click", () => { show("start"); updateNotesBadge(); window.scrollTo(0, 0); });
+$("btnClearNotes").addEventListener("click", () => {
+  if (confirm("오답노트를 모두 비우시겠습니까?")) {
+    try { localStorage.removeItem("wrongNotes"); } catch (e) {}
+    renderNotes(); updateNotesBadge();
+  }
+});
+
+updateNotesBadge();
 load();

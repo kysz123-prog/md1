@@ -30,6 +30,7 @@
       </div>
       <p id="info" class="note"></p>
       <button id="go" class="primary" disabled>시작하기</button>
+      <button id="btnNotes" class="btn-sub" type="button">📑 오답노트 (<span id="notesBadge">0</span>)</button>
     </div>
   </section>
 
@@ -67,7 +68,17 @@
       <h2 id="wrongTitle">틀린 문장</h2>
       <div id="wrongList"></div>
       <button id="again" class="primary">다시 풀기</button>
+      <button id="btnResultNotes" class="btn-sub" type="button">📑 오답노트 보러가기</button>
     </div>
+  </section>
+
+  <section id="notes" class="view" hidden>
+    <div class="notes-header">
+      <button id="btnNotesBack" class="btn-back" type="button">← 돌아가기</button>
+      <h2>📑 내 오답노트</h2>
+      <button id="btnClearNotes" class="btn-text" type="button">비우기</button>
+    </div>
+    <div id="notesList"></div>
   </section>
 </main>
 <script src="questions.js?v=8"></script>
